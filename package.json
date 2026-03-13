@@ -1,0 +1,14 @@
+
+{
+  "name": "discord-entry-bot",
+  "version": "1.0.0",
+  "description": "Simple Discord entry capture bot",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.4.5"
+  }
+}
