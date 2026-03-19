@@ -1,4 +1,3 @@
-
 require("dotenv").config();
 const {
 Client,
@@ -38,6 +37,12 @@ client.on(Events.InteractionCreate, async interaction => {
 if(interaction.isChatInputCommand()){
 
 let codes = loadCodes();
+const guildId = interaction.guild.id;
+
+// initialize server storage
+if(!codes[guildId]){
+  codes[guildId] = {};
+}
 
 // ADMIN CHECK
 if(!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)){
@@ -49,14 +54,14 @@ if(interaction.commandName === "createcode"){
 
 const code = interaction.options.getString("code").toUpperCase();
 
-if(codes[code]){
+if(codes[guildId][code]){
 return interaction.reply({
 content:"Code already exists",
 ephemeral:true
 });
 }
 
-codes[code] = [];
+codes[guildId][code] = [];
 saveCodes(codes);
 
 interaction.reply({
@@ -70,7 +75,7 @@ if(interaction.commandName === "entryportal"){
 
 const code = interaction.options.getString("code").toUpperCase();
 
-if(!codes[code]){
+if(!codes[guildId][code]){
 return interaction.reply({
 content:"Code does not exist",
 ephemeral:true
@@ -79,8 +84,8 @@ ephemeral:true
 
 const embed = new EmbedBuilder()
 .setTitle("🎁 Entry Portal")
-.setDescription(`Click the button below and enter your code to register!\n\nAvailable Code: **${code}**`)
-.setColor("Yellow");
+.setDescription(`Click the button below and enter your code to register!\n\nCode: **${code}**`)
+.setColor("Purple");
 
 const button = new ButtonBuilder()
 .setCustomId(`enter_${code}`)
@@ -100,14 +105,14 @@ if(interaction.commandName === "exportentries"){
 
 const code = interaction.options.getString("code").toUpperCase();
 
-if(!codes[code]){
+if(!codes[guildId][code]){
 return interaction.reply({
 content:"Code not found",
 ephemeral:true
 });
 }
 
-const users = codes[code];
+const users = codes[guildId][code];
 
 if(users.length === 0){
 return interaction.reply({
@@ -116,11 +121,18 @@ ephemeral:true
 });
 }
 
-// convert IDs to mentions
-const list = users.map(id => `<@${id}>`).join("\n");
+// support old + new data
+const list = users.map((u, index) => {
+  if(typeof u === "string"){
+    return `${index + 1}. Unknown User (${u})`;
+  }
+  return `${index + 1}. ${u.username}`;
+});
+
+const finalList = list.join("\n");
 
 // create txt file
-const buffer = Buffer.from(list, "utf-8");
+const buffer = Buffer.from(finalList, "utf-8");
 
 const file = new AttachmentBuilder(buffer, {
 name: `entries_${code}.txt`
@@ -131,7 +143,6 @@ content:`Entries exported for **${code}**`,
 files:[file],
 ephemeral:true
 });
-
 }
 
 // DELETE CODE
@@ -139,14 +150,14 @@ if(interaction.commandName === "deletecode"){
 
 const code = interaction.options.getString("code").toUpperCase();
 
-if(!codes[code]){
+if(!codes[guildId][code]){
 return interaction.reply({
 content:"Code not found",
 ephemeral:true
 });
 }
 
-delete codes[code];
+delete codes[guildId][code];
 saveCodes(codes);
 
 interaction.reply({
@@ -193,8 +204,14 @@ const code = interaction.customId.split("_")[1];
 const entered = interaction.fields.getTextInputValue("codeinput").toUpperCase();
 
 let codes = loadCodes();
+const guildId = interaction.guild.id;
 
-if(!codes[code]){
+// ensure server exists
+if(!codes[guildId]){
+  codes[guildId] = {};
+}
+
+if(!codes[guildId][code]){
 return interaction.reply({content:"Invalid code",ephemeral:true});
 }
 
@@ -202,14 +219,20 @@ if(entered !== code){
 return interaction.reply({content:"Wrong code",ephemeral:true});
 }
 
-if(codes[code].includes(interaction.user.id)){
+// safe duplicate check
+if(codes[guildId][code].some(u => typeof u === "object" && u.id === interaction.user.id)){
 return interaction.reply({
 content:"⚠️ You already registered!",
 ephemeral:true
 });
 }
 
-codes[code].push(interaction.user.id);
+// store user
+codes[guildId][code].push({
+  id: interaction.user.id,
+  username: interaction.user.username
+});
+
 saveCodes(codes);
 
 interaction.reply({
